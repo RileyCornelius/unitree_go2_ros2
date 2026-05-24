@@ -91,6 +91,8 @@ StateEstimation::StateEstimation():
     base_.setGaitConfig(gait_config_);
     champ::URDF::loadFromString(base_, this->get_node_parameters_interface(), urdf);
     joint_names_ = champ::URDF::getJointNames(this->get_node_parameters_interface());
+    for (size_t i = 0; i < joint_names_.size(); ++i)
+        joint_name_to_index_[joint_names_[i]] = static_cast<int>(i);
 
     node_namespace_ = this->get_namespace();
     if(node_namespace_.length() > 1)
@@ -127,9 +129,9 @@ void StateEstimation::synchronized_callback_(const std::shared_ptr<sensor_msgs::
 
     for(size_t i = 0; i < joints_msg->name.size(); i++)
     {
-        std::vector<std::string>::iterator itr = std::find(joint_names_.begin(), joint_names_.end(), joints_msg->name[i]);
-        int index = std::distance(joint_names_.begin(), itr);
-        current_joint_positions[index] = joints_msg->position[i];
+        auto it = joint_name_to_index_.find(joints_msg->name[i]);
+        if (it != joint_name_to_index_.end())
+            current_joint_positions[it->second] = joints_msg->position[i];
     }
 
     base_.updateJointPositions(current_joint_positions);
@@ -147,11 +149,10 @@ void StateEstimation::imu_callback_(const sensor_msgs::msg::Imu::SharedPtr msg)
 
 void StateEstimation::publishFootprintToOdom_()
 {
-    odometry_.getVelocities(current_velocities_, rosTimeToChampTime(clock_.now()));
-
     rclcpp::Time current_time = clock_.now();
+    odometry_.getVelocities(current_velocities_, rosTimeToChampTime(current_time));
 
-    double vel_dt = (current_time - last_vel_time_).nanoseconds()/1e-9;
+    double vel_dt = (current_time - last_vel_time_).nanoseconds() * 1e-9;
     last_vel_time_ = current_time;
     //rotate in the z axis
     //https://en.wikipedia.org/wiki/Rotation_matrix
@@ -236,7 +237,6 @@ void StateEstimation::publishBaseToFootprint_()
 {
     base_.getFootPositions(current_foot_positions_);
 
-    visualization_msgs::msg::MarkerArray marker_array;
     float robot_height = 0.0, all_height = 0.0;
     int foot_in_contact = 0;
     geometry::Transformation touching_feet[4];
@@ -244,7 +244,6 @@ void StateEstimation::publishBaseToFootprint_()
 
     for(size_t i = 0; i < 4; i++)
     {
-        marker_array.markers.push_back(createMarker_(current_foot_positions_[i], i, base_link_frame_));
         if(base_.legs[i]->in_contact())
         {
             robot_height += current_foot_positions_[i].Z();
@@ -263,8 +262,11 @@ void StateEstimation::publishBaseToFootprint_()
         touching_feet[i] = current_foot_positions_[i];
     }
 
-	if(foot_publisher_->get_subscription_count())
+    if(foot_publisher_->get_subscription_count())
     {
+        visualization_msgs::msg::MarkerArray marker_array;
+        for(size_t i = 0; i < 4; i++)
+            marker_array.markers.push_back(createMarker_(current_foot_positions_[i], i, base_link_frame_));
         foot_publisher_->publish(marker_array);
     }
 

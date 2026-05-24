@@ -164,12 +164,7 @@ void MessageRelay::footContactCallback_(const champ_msgs::msg::Contacts::SharedP
 {
     champ_msgs::msg::ContactsStamped contacts_msg;
     contacts_msg.header.stamp = this->get_clock()->now();
-    contacts_msg.contacts.resize(4);
-
-    for(size_t i = 0; i < 4; i++)
-    {
-        contacts_msg.contacts[i] = msg->contacts[i];
-    }
+    contacts_msg.contacts = msg->contacts;
 
     foot_contacts_publisher_->publish(contacts_msg);
 }

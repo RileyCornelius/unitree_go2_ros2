@@ -36,8 +36,8 @@ CHAMP (Coupled Hybrid Automata for Mobile Platforms) is an open-source developme
   - ✅ GPS (NavSat — simulates standard u-blox, ~0.5 m horizontal accuracy)
 - ✅ Point cloud visualization in RVIZ
 - ✅ Multiple sensor configurations available
-- ❌ Full SLAM functionality (Coming soon)
-- ❌ Navigation 2 integration (Coming soon)
+- ✅ SLAM with `slam_toolbox`
+- ✅ Navigation 2 integration with selectable LiDAR source
 
 ## System Requirements
 
@@ -58,6 +58,11 @@ sudo apt install ros-jazzy-ros2-controllers
 sudo apt install ros-jazzy-ros2-control
 sudo apt install ros-jazzy-velodyne
 sudo apt install ros-jazzy-velodyne-description
+sudo apt install ros-jazzy-slam-toolbox
+sudo apt install ros-jazzy-pointcloud-to-laserscan
+sudo apt install ros-jazzy-navigation2 ros-jazzy-nav2-bringup
+sudo apt install ros-jazzy-nav2-navfn-planner
+sudo apt install ros-jazzy-nav2-regulated-pure-pursuit-controller
 ```
 
 ### 2. Clone and Install CHAMP Controller and Go2 Simulation Packages
@@ -137,6 +142,118 @@ Control the robot using keyboard:
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
 
+### SLAM Mapping
+
+Launch Gazebo, RViz, the point-cloud-to-laserscan adapter, and `slam_toolbox`:
+
+```bash
+ros2 launch unitree_go2_sim go2_slam_launch.py
+```
+
+To run SLAM without RViz, use the wrapper RViz argument:
+
+```bash
+ros2 launch unitree_go2_sim go2_slam_launch.py launch_rviz:=false
+```
+
+The SLAM launch defaults to the Unitree L1 LiDAR:
+
+```bash
+ros2 launch unitree_go2_sim go2_slam_launch.py lidar:=unitree_lidar
+```
+
+To map with the Velodyne point cloud instead:
+
+```bash
+ros2 launch unitree_go2_sim go2_slam_launch.py lidar:=velodyne_points
+```
+
+Drive the robot around while SLAM is running:
+
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+```
+
+Save the map once it looks complete in RViz:
+
+```bash
+ros2 run nav2_map_server map_saver_cli -f ~/go2_map
+```
+
+This creates `~/go2_map.yaml` and `~/go2_map.pgm`.
+
+### Navigation
+
+Launch Gazebo, RViz, AMCL, Nav2, and the LiDAR scan adapter with a saved map:
+
+```bash
+ros2 launch unitree_go2_sim go2_nav_launch.py map:=${HOME}/go2_map.yaml
+```
+
+The navigation launch also defaults to the Unitree L1 LiDAR. Use Velodyne by passing:
+
+```bash
+ros2 launch unitree_go2_sim go2_nav_launch.py map:=${HOME}/go2_map.yaml lidar:=velodyne_points
+```
+
+To run Nav2 without RViz:
+
+```bash
+ros2 launch unitree_go2_sim go2_nav_launch.py map:=${HOME}/go2_map.yaml launch_rviz:=false
+```
+
+Use RViz to set the initial pose with `2D Pose Estimate`, then send a goal with `2D Goal Pose`.
+
+### Navigation Worlds
+
+The base simulation launch accepts a full world file path:
+
+```bash
+ros2 launch unitree_go2_sim unitree_go2_launch.py world:=$(ros2 pkg prefix unitree_go2_description)/share/unitree_go2_description/worlds/walled_world.sdf
+```
+
+The SLAM and Nav2 launches default to `maze_world.sdf`. You can switch worlds the same way:
+
+```bash
+ros2 launch unitree_go2_sim go2_slam_launch.py world:=$(ros2 pkg prefix unitree_go2_description)/share/unitree_go2_description/worlds/default.sdf
+```
+
+Available worlds:
+
+| World | Description |
+|-------|-------------|
+| `default.sdf` | Simple obstacle world with GPS origin metadata |
+| `walled_world.sdf` | Small enclosed world with basic obstacles |
+| `maze_world.sdf` | Narrow-corridor navigation test world |
+
+### LiDAR Selection for SLAM and Nav2
+
+Both SLAM and Nav2 consume `/scan`. The launch files create `/scan` from one of the simulated point clouds:
+
+| Launch value | Input point cloud | Output |
+|--------------|-------------------|--------|
+| `lidar:=unitree_lidar` | `/unitree_lidar/points` | `/scan` |
+| `lidar:=velodyne_points` | `/velodyne_points/points` | `/scan` |
+
+`unitree_lidar` is the default.
+
+The scan adapter filters in `base_footprint` height so floor returns are not
+projected into `/scan`. The Unitree L1 uses `0.12..0.55 m`; the Velodyne uses
+`0.25..0.70 m`. To tune these values, edit the heights directly in
+`unitree_go2_sim/launch/pointcloud_to_scan_launch.py`.
+
+### TF Stability
+
+By default the simulation publishes a stable static `base_footprint -> base_link`
+transform with `base_link_z:=0.225`. This keeps the RViz robot model from
+bouncing while SLAM and Nav2 use the planar `base_footprint` frame.
+
+To inspect the full dynamic body estimate instead, opt into the CHAMP body EKF:
+
+```bash
+ros2 launch unitree_go2_sim unitree_go2_launch.py dynamic_base_tf:=true
+```
+
 ### GPS Simulation
 
 The robot includes a simulated GPS (NavSat) sensor mounted on top of the trunk, publishing at 10 Hz on `/gps/fix` as `sensor_msgs/msg/NavSatFix`.
@@ -175,6 +292,8 @@ The world's GPS origin is defined in `unitree_go2_description/worlds/default.sdf
 
 The gait configuration for the robot is found in `unitree_go2_sim/config/gait/gait.yaml`. You can modify the following parameters:
 
+> **Nav2 and SLAM configuration** is in `unitree_go2_sim/config/nav/nav2.yaml` and `unitree_go2_sim/config/nav/slam.yaml` respectively.
+
 | Parameter | Description |
 |-----------|-------------|
 | Knee Orientation | How the knees should be bent (.>> .>< .<< .<>) |
@@ -194,7 +313,12 @@ The gait configuration for the robot is found in `unitree_go2_sim/config/gait/ga
 
 - `champ/`: Core controllers and state estimation for CHAMP
 - `unitree_go2_description/`: URDF models, meshes, and world files
-- `unitree_go2_sim/`: Simulation launch files and configuration
+- `unitree_go2_sim/`: Simulation, SLAM, Nav2 launch files, and configuration
+  - `config/gait/` — gait tuning parameters
+  - `config/joints/` — joint configuration
+  - `config/links/` — link configuration
+  - `config/nav/` — Nav2 (`nav2.yaml`) and SLAM (`slam.yaml`) parameters
+  - `config/ros_control/` — ros2_control hardware interface config
 
 ## Contributing
 

@@ -2,13 +2,38 @@
 
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-    <!-- Include the RealSense D455 URDF macro from realsense2_description -->
-    <xacro:include filename="$(find realsense2_description)/urdf/_d455.urdf.xacro"/>
-
-    <!-- Mount the D455 on top of the trunk, in front of the velodyne lidar -->
-    <xacro:sensor_d455 parent="trunk" name="d455_camera" use_nominal_extrinsics="true">
+    <!-- Lightweight D455 stand-in for Gazebo, avoiding an external mesh dependency. -->
+    <joint name="d455_camera_joint" type="fixed">
+        <parent link="trunk"/>
+        <child link="d455_camera_link"/>
         <origin xyz="0.28 0 0.062" rpy="0 0 0"/>
-    </xacro:sensor_d455>
+    </joint>
+
+    <link name="d455_camera_link">
+        <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="0.072"/>
+            <inertia
+                ixx="0.00001" ixy="0.0" ixz="0.0"
+                iyy="0.00001" iyz="0.0"
+                izz="0.00001"/>
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <geometry>
+                <box size="0.095 0.025 0.025"/>
+            </geometry>
+            <material name="d455_body">
+                <color rgba="0.08 0.08 0.08 1.0"/>
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <geometry>
+                <box size="0.095 0.025 0.025"/>
+            </geometry>
+        </collision>
+    </link>
 
     <!-- Gazebo Sim RGBD Camera sensor plugin -->
     <gazebo reference="d455_camera_link">
