@@ -29,6 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define STATE_ESTIMATION_H
 
 #include "rclcpp/rclcpp.hpp"
+#include <unordered_map>
 
 #include <champ_msgs/msg/contacts_stamped.hpp>
 
@@ -93,6 +94,7 @@ class StateEstimation: public rclcpp::Node
     champ::Odometry odometry_;
 
     std::vector<std::string> joint_names_;
+    std::unordered_map<std::string, int> joint_name_to_index_;
     std::string base_name_;
     std::string node_namespace_;
     std::string odom_frame_;
