@@ -30,14 +30,16 @@ CHAMP (Coupled Hybrid Automata for Mobile Platforms) is an open-source developme
   - ✅ IMU
   - ✅ 2D LiDAR (Hokuyo)
   - ✅ 3D LiDAR (Velodyne)
-  - ✅ 3D LiDAR (4D Lidar L1) (need some imporvments)
+  - ✅ 3D LiDAR (4D Lidar L1)
   - ✅ Mono Camera
-  - ❌ Depth Camera
+  - ✅ Depth Camera (RealSense D455 RGBD)
   - ✅ GPS (NavSat — simulates standard u-blox, ~0.5 m horizontal accuracy)
 - ✅ Point cloud visualization in RVIZ
 - ✅ Multiple sensor configurations available
 - ✅ SLAM with `slam_toolbox`
 - ✅ Navigation 2 integration with selectable LiDAR source
+- ✅ Combined SLAM + Nav2 — navigate immediately without a pre-built map
+- ✅ RViz 2D Goal Pose — click a goal, robot walks there autonomously
 
 ## System Requirements
 
@@ -182,13 +184,48 @@ ros2 run nav2_map_server map_saver_cli -f ~/go2_map
 
 This creates `~/go2_map.yaml` and `~/go2_map.pgm`.
 
-### Navigation
+### Navigation — SLAM + Nav2 (no pre-built map required)
 
-Launch Gazebo, RViz, AMCL, Nav2, and the LiDAR scan adapter with a saved map:
+The easiest way to navigate: one launch command starts SLAM, Nav2, and RViz together. `slam_toolbox` builds the map in real time and provides localization so no pre-built map or AMCL is needed.
+
+```bash
+ros2 launch unitree_go2_sim go2_slam_nav_launch.py
+```
+
+**Sending a navigation goal:**
+
+1. Wait for Gazebo and RViz to open and the map (grey area) to appear around the robot.
+2. In the RViz toolbar, click **2D Goal Pose** (or press `G`).
+3. Click a point on the map and drag to set the desired heading — an arrow will appear.
+4. Release — Nav2 will plan a path (green line in RViz) and the robot will walk to the goal.
+
+The map grows as the robot explores. Drive with teleop first to reveal areas before setting goals in unexplored space:
+
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+```
+
+With Velodyne instead of Unitree L1:
+
+```bash
+ros2 launch unitree_go2_sim go2_slam_nav_launch.py lidar:=velodyne_points
+```
+
+Without RViz:
+
+```bash
+ros2 launch unitree_go2_sim go2_slam_nav_launch.py launch_rviz:=false
+```
+
+### Navigation — Nav2 with a pre-built map (AMCL localization)
+
+For known environments, load a saved map and use AMCL for localization:
 
 ```bash
 ros2 launch unitree_go2_sim go2_nav_launch.py map:=${HOME}/go2_map.yaml
 ```
+
+**First run:** set the robot's initial pose with **2D Pose Estimate** in RViz (click the robot's location on the map and drag to match its heading). Once the AMCL particle cloud collapses, use **2D Goal Pose** to navigate.
 
 The navigation launch also defaults to the Unitree L1 LiDAR. Use Velodyne by passing:
 
@@ -201,8 +238,6 @@ To run Nav2 without RViz:
 ```bash
 ros2 launch unitree_go2_sim go2_nav_launch.py map:=${HOME}/go2_map.yaml launch_rviz:=false
 ```
-
-Use RViz to set the initial pose with `2D Pose Estimate`, then send a goal with `2D Goal Pose`.
 
 ### Navigation Worlds
 
