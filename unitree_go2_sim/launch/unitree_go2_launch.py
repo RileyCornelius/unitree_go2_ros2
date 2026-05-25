@@ -113,6 +113,34 @@ def generate_launch_description():
         ],
     )
 
+    # Flattens Gazebo's /odom into a clean odom->base_link TF.
+    # Gazebo's <dimensions>2</dimensions> flattens the topic but leaks roll/pitch
+    # into the TF; this EKF in 2D mode guarantees a planar transform.
+    odom_tf_ekf = Node(
+        package="robot_localization",
+        executable="ekf_node",
+        name="odom_tf_ekf",
+        output="screen",
+        parameters=[{
+            "use_sim_time": use_sim_time,
+            "frequency": 50.0,
+            "two_d_mode": True,
+            "publish_tf": True,
+            "world_frame": "odom",
+            "odom_frame": "odom",
+            "base_link_frame": "base_link",
+            "odom0": "/odom",
+            "odom0_config": [True,  True,  False,
+                             False, False, True,
+                             True,  True,  False,
+                             False, False, True,
+                             False, False, False],
+            "odom0_differential": False,
+            "odom0_relative": False,
+        }],
+        remappings=[("odometry/filtered", "odometry/filtered")],
+    )
+
     rviz2 = Node(
         package='rviz2',
         executable='rviz2',
@@ -155,7 +183,6 @@ def generate_launch_description():
         arguments=[
             # Gazebo to ROS
             '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
-            '/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
             '/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
             '/imu/data@sensor_msgs/msg/Imu[gz.msgs.IMU',
             '/velodyne_points@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan', # /scan remapped
@@ -229,6 +256,7 @@ def generate_launch_description():
             gazebo_bridge,
             quadruped_controller_node,
             state_estimator_node,
+            odom_tf_ekf,
             controller_spawner_js,
             controller_spawner_effort,
             rviz2,
