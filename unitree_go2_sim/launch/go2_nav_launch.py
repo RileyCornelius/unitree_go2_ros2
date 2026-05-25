@@ -1,5 +1,5 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
@@ -12,7 +12,6 @@ def generate_launch_description():
     unitree_go2_description = FindPackageShare("unitree_go2_description")
 
     use_sim_time = LaunchConfiguration("use_sim_time")
-    lidar = LaunchConfiguration("lidar")
     map_file = LaunchConfiguration("map")
     world = LaunchConfiguration("world")
     launch_rviz = LaunchConfiguration("launch_rviz")
@@ -22,6 +21,7 @@ def generate_launch_description():
     default_world = PathJoinSubstitution(
         [unitree_go2_description, "worlds", "maze_world.sdf"]
     )
+    default_map = PathJoinSubstitution([unitree_go2_sim, "maps", "go2_map.yaml"])
 
     sim_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -36,18 +36,6 @@ def generate_launch_description():
             "publish_base_tf": "true",
             "dynamic_base_tf": "false",
             "world": world,
-        }.items(),
-    )
-
-    scan_adapter = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution(
-                [unitree_go2_sim, "launch", "pointcloud_to_scan_launch.py"]
-            )
-        ),
-        launch_arguments={
-            "use_sim_time": use_sim_time,
-            "lidar": lidar,
         }.items(),
     )
 
@@ -163,13 +151,8 @@ def generate_launch_description():
                 description="Use simulation (Gazebo) clock if true",
             ),
             DeclareLaunchArgument(
-                "lidar",
-                default_value="unitree_lidar",
-                description="Point cloud source for /scan: unitree_lidar or velodyne_points",
-            ),
-            DeclareLaunchArgument(
                 "map",
-                default_value="",
+                default_value=default_map,
                 description="Full path to map YAML file to load",
             ),
             DeclareLaunchArgument(
@@ -183,9 +166,8 @@ def generate_launch_description():
                 description="Launch RViz for the Nav2 session",
             ),
             sim_launch,
-            scan_adapter,
             *nav2_nodes,
-            lifecycle_manager,
+            TimerAction(period=8.0, actions=[lifecycle_manager]),
             rviz_node,
         ]
     )

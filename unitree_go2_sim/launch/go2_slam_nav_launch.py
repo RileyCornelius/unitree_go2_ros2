@@ -1,5 +1,5 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
@@ -12,7 +12,6 @@ def generate_launch_description():
     unitree_go2_description = FindPackageShare("unitree_go2_description")
 
     use_sim_time = LaunchConfiguration("use_sim_time")
-    lidar = LaunchConfiguration("lidar")
     world = LaunchConfiguration("world")
     launch_rviz = LaunchConfiguration("launch_rviz")
 
@@ -37,19 +36,6 @@ def generate_launch_description():
             "publish_base_tf": "true",
             "dynamic_base_tf": "false",
             "world": world,
-        }.items(),
-    )
-
-    # Convert 3D point cloud to 2D laser scan for SLAM and Nav2 costmaps
-    scan_adapter = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution(
-                [unitree_go2_sim, "launch", "pointcloud_to_scan_launch.py"]
-            )
-        ),
-        launch_arguments={
-            "use_sim_time": use_sim_time,
-            "lidar": lidar,
         }.items(),
     )
 
@@ -165,11 +151,6 @@ def generate_launch_description():
                 description="Use simulation (Gazebo) clock if true",
             ),
             DeclareLaunchArgument(
-                "lidar",
-                default_value="unitree_lidar",
-                description="Point cloud source for /scan: unitree_lidar or velodyne_points",
-            ),
-            DeclareLaunchArgument(
                 "world",
                 default_value=default_world,
                 description="Gazebo world file path",
@@ -180,10 +161,9 @@ def generate_launch_description():
                 description="Launch RViz for the SLAM+Nav2 session",
             ),
             sim_launch,
-            scan_adapter,
             slam_toolbox,
             *nav2_nodes,
-            lifecycle_manager,
+            TimerAction(period=8.0, actions=[lifecycle_manager]),
             rviz_node,
         ]
     )

@@ -12,6 +12,11 @@ amcl:
     robot_model_type: nav2_amcl::DifferentialMotionModel
     scan_topic: /scan
     set_initial_pose: false
+    # initial_pose:
+    #   x: 0.0
+    #   y: 0.0
+    #   z: 0.0
+    #   yaw: 0.0
     tf_broadcast: true
     transform_tolerance: 1.0
     update_min_a: 0.2

@@ -116,16 +116,10 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 
 ### SLAM Mapping
 
-Launch Gazebo, RViz, the point-cloud-to-laserscan adapter, and `slam_toolbox`. Use this when you want to build and save a map for later use with Nav2.
+Launch Gazebo, RViz, and `slam_toolbox`. Use this when you want to build and save a map for later use with Nav2.
 
 ```bash
 ros2 launch unitree_go2_sim go2_slam_launch.py
-```
-
-The SLAM launch defaults to the Unitree L1 LiDAR. To map with the Velodyne instead:
-
-```bash
-ros2 launch unitree_go2_sim go2_slam_launch.py lidar:=velodyne_points
 ```
 
 Drive the robot around while SLAM is running:
@@ -137,10 +131,10 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 Save the map once it looks complete in RViz:
 
 ```bash
-ros2 run nav2_map_server map_saver_cli -f ~/maps/go2_map
+ros2 run nav2_map_server map_saver_cli -f go2_map
 ```
 
-Run this from the `unitree_go2_sim` package directory. This creates `go2_map.yaml` and `go2_map.pgm` in the `maps/` folder.
+This creates `go2_map.yaml` and `go2_map.pgm` in your home directory.
 
 ### Navigation — SLAM + Nav2 (no pre-built map required)
 
@@ -159,32 +153,26 @@ ros2 launch unitree_go2_sim go2_slam_nav_launch.py
 
 The map grows as the robot explores. Drive with teleop first to reveal areas before setting goals in unexplored space.
 
-With Velodyne instead of Unitree L1:
-
-```bash
-ros2 launch unitree_go2_sim go2_slam_nav_launch.py lidar:=velodyne_points
-```
-
 ### Navigation — Nav2 with a pre-built map (AMCL localization)
 
-For known environments, load a saved map and use AMCL for localization:
+For known environments, load a saved map and use AMCL for localization. A default map is bundled in the package so no argument is required:
 
 ```bash
-ros2 launch unitree_go2_sim go2_nav_launch.py map:=maps/go2_map.yaml
+ros2 launch unitree_go2_sim go2_nav_launch.py
+```
+
+To use your own saved map:
+
+```bash
+ros2 launch unitree_go2_sim go2_nav_launch.py map:=~/go2_map.yaml
 ```
 
 **First run:** set the robot's initial pose with **2D Pose Estimate** in RViz (click the robot's location on the map and drag to match its heading). Once the AMCL particle cloud collapses, use **2D Goal Pose** to navigate.
 
-With Velodyne:
-
-```bash
-ros2 launch unitree_go2_sim go2_nav_launch.py map:=maps/go2_map.yaml lidar:=velodyne_points
-```
-
 Without RViz:
 
 ```bash
-ros2 launch unitree_go2_sim go2_nav_launch.py map:=maps/go2_map.yaml launch_rviz:=false
+ros2 launch unitree_go2_sim go2_nav_launch.py launch_rviz:=false
 ```
 
 ### Navigation Worlds
@@ -207,18 +195,9 @@ Available worlds:
 | `walled_world.sdf` | Small enclosed world with walls |
 | `maze_world.sdf` | Narrow-corridor navigation test world (default for SLAM/Nav2) |
 
-### LiDAR Selection for SLAM and Nav2
+### LiDAR and `/scan`
 
-Both SLAM and Nav2 consume `/scan`. The launch files create `/scan` from one of the simulated point clouds:
-
-| Launch value | Input point cloud | Output |
-|--------------|-------------------|--------|
-| `lidar:=unitree_lidar` | `/unitree_lidar/points` | `/scan` |
-| `lidar:=velodyne_points` | `/velodyne_points/points` | `/scan` |
-
-`unitree_lidar` is the default.
-
-The scan adapter filters by height in `base_footprint` frame so floor returns are not projected into `/scan`. The Unitree L1 uses `0.12–0.55 m`; the Velodyne uses `0.25–0.70 m`. To tune these values, edit the constants in `unitree_go2_sim/launch/pointcloud_to_scan_launch.py`.
+Both SLAM and Nav2 consume `/scan`. The Velodyne VLP16 publishes a native `LaserScan` in Gazebo that is bridged directly to `/scan` via the `ros_gz_bridge` — no point-cloud-to-scan conversion is needed. The Unitree L1 is available as a `PointCloud2` on `/unitree_lidar/points` but does not currently contribute to `/scan`.
 
 ### GPS Simulation
 
