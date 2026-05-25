@@ -30,9 +30,6 @@ def generate_launch_description():
         launch_arguments={
             "use_sim_time": use_sim_time,
             "rviz": "false",
-            "publish_map_tf": "false",
-            "publish_base_tf": "true",
-            "dynamic_base_tf": "false",
             "world": world,
         }.items(),
     )

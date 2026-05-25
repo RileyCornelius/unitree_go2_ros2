@@ -22,7 +22,7 @@ def generate_launch_description():
         [unitree_go2_description, "worlds", "maze_world.sdf"]
     )
 
-    # Base simulation — slam_toolbox owns map->odom so publish_map_tf is false
+    # Base simulation — slam_toolbox owns map->odom
     sim_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution(
@@ -32,9 +32,6 @@ def generate_launch_description():
         launch_arguments={
             "use_sim_time": use_sim_time,
             "rviz": "false",
-            "publish_map_tf": "false",
-            "publish_base_tf": "true",
-            "dynamic_base_tf": "false",
             "world": world,
         }.items(),
     )

@@ -12,13 +12,11 @@ from launch.actions import (
 )
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, LaunchConfiguration, PythonExpression
+from launch.substitutions import Command, LaunchConfiguration
 
 
 def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time")
-    dynamic_base_tf = LaunchConfiguration("dynamic_base_tf")
-    base_frame = "base_link"
 
     unitree_go2_sim = launch_ros.substitutions.FindPackageShare(
         package="unitree_go2_sim").find("unitree_go2_sim")
@@ -64,30 +62,7 @@ def generate_launch_description():
         description="Path to the robot description xacro file",
     )
 
-    declare_publish_map_tf = DeclareLaunchArgument(
-        "publish_map_tf",
-        default_value="true",
-        description="Publish a static map to odom transform",
-    )
-
-    declare_publish_base_tf = DeclareLaunchArgument(
-        "publish_base_tf",
-        default_value="true",
-        description="Publish a stable static base_footprint to base_link transform",
-    )
-
-    declare_dynamic_base_tf = DeclareLaunchArgument(
-        "dynamic_base_tf",
-        default_value="false",
-        description="Use the CHAMP EKF for base_footprint to base_link instead of the static transform",
-    )
-
-    declare_base_link_z = DeclareLaunchArgument(
-        "base_link_z",
-        default_value="0.225",
-        description="Static base_link height above base_footprint when publish_base_tf is true",
-    )
-
+    # Description nodes and parameters
     robot_description = {"robot_description": Command(["xacro ", LaunchConfiguration("unitree_go2_description_path"),
                                                        " robot_controllers:=", LaunchConfiguration("ros_control_file")])}
 
@@ -101,6 +76,7 @@ def generate_launch_description():
         ],
     )
 
+    # CHAMP controller nodes
     quadruped_controller_node = Node(
         package="champ_base",
         executable="quadruped_controller_node",
@@ -135,82 +111,6 @@ def generate_launch_description():
             links_config,
             gait_config,
         ],
-    )
-
-    base_to_footprint_ekf = Node(
-        package="robot_localization",
-        executable="ekf_node",
-        name="base_to_footprint_ekf",
-        output="screen",
-        parameters=[
-            {"base_link_frame": base_frame},
-            {"use_sim_time": use_sim_time},
-            os.path.join(
-                get_package_share_directory("champ_base"),
-                "config",
-                "ekf",
-                "base_to_footprint.yaml",
-            ),
-        ],
-        remappings=[("odometry/filtered", "odom/local")],
-        condition=IfCondition(dynamic_base_tf),
-    )
-
-    footprint_to_odom_ekf = Node(
-        package="robot_localization",
-        executable="ekf_node",
-        name="footprint_to_odom_ekf",
-        output="screen",
-        parameters=[
-            {"use_sim_time": use_sim_time},
-            {"base_link_frame": "base_footprint"},
-            {"odom_frame": "odom"},
-            {"world_frame": "odom"},
-            {"publish_tf": True},
-            {"frequency": 50.0},
-            {"two_d_mode": True},
-            {"odom0": "odom/raw"},
-            {"odom0_config": [False, False, False, False, False, False, True, True, False, False, False, True, False, False, False]},
-            {"imu0": "imu/data"},
-            {"imu0_config": [False, False, False, False, False, True, False, False, False, False, False, True, False, False, False]},
-        ],
-        remappings=[("odometry/filtered", "odom")],
-    )
-
-    map_to_odom_tf_node = Node(
-        package='tf2_ros',
-        name='map_to_odom_tf_node',
-        executable='static_transform_publisher',
-        parameters=[{'use_sim_time': use_sim_time}],
-        arguments=[
-            '--x', '0', '--y', '0', '--z', '0',
-            '--roll', '0', '--pitch', '0', '--yaw', '0',
-            '--frame-id', 'map', '--child-frame-id', 'odom'
-        ],
-        condition=IfCondition(LaunchConfiguration("publish_map_tf")),
-    )
-
-    base_footprint_to_base_link_tf_node = Node(
-        package='tf2_ros',
-        name='base_footprint_to_base_link_tf_node',
-        executable='static_transform_publisher',
-        parameters=[{'use_sim_time': use_sim_time}],
-        arguments=[
-            '--x', '0', '--y', '0', '--z', LaunchConfiguration("base_link_z"),
-            '--roll', '0', '--pitch', '0', '--yaw', '0',
-            '--frame-id', 'base_footprint', '--child-frame-id', 'base_link'
-        ],
-        condition=IfCondition(
-            PythonExpression(
-                [
-                    "'",
-                    LaunchConfiguration("publish_base_tf"),
-                    "' == 'true' and '",
-                    dynamic_base_tf,
-                    "' != 'true'",
-                ]
-            )
-        ),
     )
 
     rviz2 = Node(
@@ -255,6 +155,8 @@ def generate_launch_description():
         arguments=[
             # Gazebo to ROS
             '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
+            '/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
+            '/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
             '/imu/data@sensor_msgs/msg/Imu[gz.msgs.IMU',
             '/velodyne_points@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan', # /scan remapped
             '/velodyne_points/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked',
@@ -321,20 +223,12 @@ def generate_launch_description():
             declare_world_init_z,
             declare_world_init_heading,
             declare_description_path,
-            declare_publish_map_tf,
-            declare_publish_base_tf,
-            declare_dynamic_base_tf,
-            declare_base_link_z,
             gz_sim,
             robot_state_publisher_node,
             gazebo_spawn_robot,
             gazebo_bridge,
             quadruped_controller_node,
             state_estimator_node,
-            base_to_footprint_ekf,
-            footprint_to_odom_ekf,
-            map_to_odom_tf_node,
-            base_footprint_to_base_link_tf_node,
             controller_spawner_js,
             controller_spawner_effort,
             rviz2,
